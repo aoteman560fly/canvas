@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+    <style type="text/css">
+    body {
+        margin: 0;
+        padding: 0;
+        background: #fff;
+        min-width: 960px;
+    }
+
+    circle {
+        fill: #fff;
+    }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js" charset="utf-8"></script>
+    <script type="text/javascript">
+    var svg, wrap_width, wrap_height;
+    var num_tags = 200;
+    var radian   = Math.PI / 180;
+    
+    var radius   = 140;
+    var distance = 250;
+    
+    var average = true;
+    var active  = false;
+
+    var thisa = 0;
+    var thisb = 0;
+    var lasta = 1;
+    var lastb = 1;
+
+    function init_bg() {
+        var tspeed  = 3;
+        var size    = 300;
+
+        svg.append("rect")
+            .attr("width", wrap_width)
+            .attr("height", wrap_height)
+            .on("ontouchstart" in document ? "touchmove" : "mousemove", function(){
+                var mouse_point = d3.mouse(this);
+
+                var mouseX = (mouse_point[0] - wrap_width / 2) / 5;
+                var mouseY = (mouse_point[1] - wrap_height / 2) / 5;
+                thisa = (-Math.min(Math.max(-mouseY, -size), size) / radius) * tspeed;
+                thisb = (Math.min(Math.max(-mouseX, -size), size) / radius) * tspeed;
+
+                d3.event.preventDefault();
+            }).on("mouseover", function(){
+                active = true;
+            }).on("mouseout", function(){
+                active = false;
+            });
+    }
+
+    function init_tags() {
+        var tags_data = d3.range(num_tags).map(function(index) {
+            var theta, phi,
+                radius = 200;
+            if (average) {
+                theta = Math.acos((2 * index + 1) / num_tags - 1);
+                phi = Math.sqrt(num_tags * Math.PI) * theta;
+            } else {
+            }
+            // 球坐标变换公式
+            return {
+                cx    : radius * Math.cos(phi) * Math.sin(theta),
+                cy    : radius * Math.sin(phi) * Math.sin(theta),
+                cz    : radius * Math.cos(theta),
+                r     : 10,
+                scale : 1,
+                alpha : 1
+            };
+        });
+
+        var g = svg.selectAll("g")
+                    .data(tags_data)
+                    .enter().append("g");
+
+        var ball = g.append("circle");
+
+        d3.timer(function(){
+            if (active) {
+                lasta = thisa;
+                lastb = thisb;
+            } else {
+                lasta = lasta * 0.98;
+                lastb = lastb * 0.98;
+            }
+
+            if (Math.abs(lasta) <= 0.01 && Math.abs(lastb) <= 0.01) {
+                return;
+            }
+
+            var sineX   = Math.sin(lasta * radian);
+            var cosineX = Math.cos(lasta * radian);
+            var sineY   = Math.sin(lastb * radian);
+            var cosineY = Math.cos(lastb * radian);
+            var sineZ   = Math.sin(0 * radian);
+            var cosineZ = Math.cos(0 * radian);
+
+            for (var i = 0; i < num_tags; i++) {
+                // x 轴旋转
+                var rx1 = tags_data[i].cx;
+                var ry1 = tags_data[i].cy * cosineX - tags_data[i].cz * sineX;
+                var rz1 = tags_data[i].cy * sineX + tags_data[i].cz * cosineX;
+                // y 轴旋转
+                var rx2 = rx1 * cosineY + rz1 * sineY;
+                var ry2 = ry1;
+                var rz2 = rz1 * cosineY - rx1 * sineY;
+                // z 轴旋转
+                var rx3 = rx2 * cosineZ - ry2 * sineZ;
+                var ry3 = rx2 * sineZ + ry2 * cosineZ;
+                var rz3 = rz2;
+
+                tags_data[i].cx = rx3;
+                tags_data[i].cy = ry3;
+                tags_data[i].cz = rz3;
+
+                var per = distance / (distance + rz3);
+
+                // tags_data[i].x = (howElliptical*rx3*per)-(howElliptical*2);
+                // tags_data[i].y = ry3*per;
+                tags_data[i].scale = per;
+                tags_data[i].alpha = per / 5;
+            }
+
+            ball.attr("cx", function(item){
+                return item.cx + wrap_width / 2;
+            }).attr("cy", function(item){
+                return item.cy + wrap_height / 2;
+            }).attr("r", function(item){
+                return Math.min(item.r * 3, item.r / 1.5 + 3 * item.scale);
+            }).attr('fill-opacity', function(item){
+                return item.alpha;
+            });
+        });
+    }
+
+    window.onload = function(){
+        wrap_width = Math.max(960, innerWidth);
+        wrap_height = Math.max(500, innerHeight);
+
+        svg = d3.select("body").append("svg")
+            .attr("width", wrap_width)
+            .attr("height", wrap_height);
+
+        init_bg();
+
+        init_tags();
+    };
+    </script>
+</body>
+</html>

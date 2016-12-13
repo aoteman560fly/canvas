@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+    <style type="text/css">
+    * {
+        margin: 0;
+        padding: 0;
+    }
+    #wrap_div {
+        margin: 0 auto;
+    }
+    </style>
+</head>
+<body>
+    <div id="wrap_div">
+        <canvas id="3dCanvas"></canvas>
+    </div>
+</body>
+
+<script type="text/javascript">
+    var wrap_div;
+    var wrap_width = 400;
+    var wrap_height = 400;
+    var _3dCanvas;
+    var offset_left;
+    var offset_top;
+
+    var mcList  = [];
+    var distr   = true;
+    var active  = false;
+    var tspeed  = 20;
+    var size    = 200;
+
+    var thisa   = 0;
+    var thisb   = 0;
+    var lasta   = 1;
+    var lastb   = 1;
+
+    var radius  = 140;
+    var dtr = Math.PI / 180; // radian
+    var d   = 200;
+
+    function init_wrap(){
+        wrap_div                = document.getElementById("wrap_div");
+        wrap_div.style.width    = wrap_width + 'px';
+        wrap_div.style.height   = wrap_height + 'px';
+
+        _3dCanvas               = document.getElementById("3dCanvas");
+        _3dCanvas.width         = wrap_width;
+        _3dCanvas.height        = wrap_height;
+
+        offset_left = _3dCanvas.offsetLeft;
+        offset_top  = _3dCanvas.offsetTop;
+    }
+
+    function init_tags() {
+        for (var i = 0; i < 30; i++) {
+            var oTag = {};
+            oTag.zerox = 0;
+            oTag.zeroy = 0;
+
+            oTag.scale      = 1;
+            oTag.alpha      = 1;
+            oTag.fontSize   = 10;
+            mcList.push(oTag);
+        }
+
+        var theta, phi;
+        var max = mcList.length;
+        for (var k = 0; k < max; k++) {
+            if (distr) {
+                theta = Math.acos((2 * k + 1) / max - 1);
+
+                phi = Math.sqrt(max * Math.PI) * theta;
+            } else {
+                theta = Math.random() * (Math.PI);
+                phi = Math.random() * (2 * Math.PI);
+            }
+            // 球坐标变换公式
+            mcList[k].cx = radius * Math.cos(phi) * Math.sin(theta);
+            mcList[k].cy = radius * Math.sin(phi) * Math.sin(theta);
+            mcList[k].cz = radius * Math.cos(theta);
+        }
+        updatePosition();
+    }
+
+    function updatePosition() {
+        clearCanvas();
+        for (var i = 0; i < mcList.length; i++) {
+            var x = mcList[i].cx + wrap_width / 2;
+            var y = mcList[i].cy + wrap_height / 2;
+            var r = mcList[i].fontSize / 1.5 + 4 * mcList[i].scale;
+            var a = mcList[i].alpha;
+            drawTag(x, y, r, a);
+        }
+    }
+
+    function drawTag(x, y, r, a) {
+        var cxt         = _3dCanvas.getContext("2d");
+        cxt.fillStyle   = 'rgba(255, 0, 0, ' + a + ')';
+        cxt.beginPath();
+        cxt.arc(x, y, r, 0, Math.PI*2);
+        cxt.closePath();
+        cxt.fill();
+    }
+
+    function clearCanvas(){
+        var cxt = _3dCanvas.getContext("2d");
+        cxt.clearRect(0, 0, wrap_width, wrap_height);
+    }
+
+    function update() {
+        if (active) {
+            lasta = thisa;
+            lastb = thisb;
+        } else {
+            lasta = lasta * 0.98;
+            lastb = lastb * 0.98;
+        }
+    
+        if (Math.abs(lasta) <= 0.01 && Math.abs(lastb) <= 0.01) {
+            return;
+        }
+
+        // sineCosine(lasta, lastb, 0);
+        var sineX   = Math.sin(lasta * dtr);
+        var cosineX = Math.cos(lasta * dtr);
+        var sineY   = Math.sin(lastb * dtr);
+        var cosineY = Math.cos(lastb * dtr);
+        var sineZ   = Math.sin(0 * dtr);
+        var cosineZ = Math.cos(0 * dtr);
+
+        for (var i = 0; i < mcList.length; i++) {
+            // x 轴旋转
+            var rx1 = mcList[i].cx;
+            var ry1 = mcList[i].cy * cosineX - mcList[i].cz * sineX;
+            var rz1 = mcList[i].cy * sineX + mcList[i].cz * cosineX;
+            // y 轴旋转
+            var rx2 = rx1 * cosineY + rz1 * sineY;
+            var ry2 = ry1;
+            var rz2 = rz1 * cosineY - rx1 * sineY;
+            // z 轴旋转
+            var rx3 = rx2 * cosineZ - ry2 * sineZ;
+            var ry3 = rx2 * sineZ + ry2 * cosineZ;
+            var rz3 = rz2;
+
+            mcList[i].cx = rx3;
+            mcList[i].cy = ry3;
+            mcList[i].cz = rz3;
+
+            var per = d / (d + rz3);
+
+            // mcList[i].x = (howElliptical*rx3*per)-(howElliptical*2);
+            // mcList[i].y = ry3*per;
+            mcList[i].scale = per;
+            mcList[i].alpha = per;
+            mcList[i].alpha = (mcList[i].alpha - 0.6) * (10 / 6);
+        }
+        updatePosition();
+    }
+
+    window.onload = function(){
+        init_wrap();
+        init_tags();
+
+        _3dCanvas.addEventListener('mouseover', function($e){
+            active = true;
+        });
+        _3dCanvas.addEventListener('mouseout', function($e){
+            active = false;
+        });
+        _3dCanvas.addEventListener('mousemove', function($e){
+            $e.preventDefault();
+            var mouseX = ($e.pageX - offset_left - wrap_width / 2) / 5;
+            var mouseY = ($e.pageY - offset_top - wrap_height / 2) / 5;
+            thisa = (-Math.min(Math.max(-mouseY, -size), size) / radius) * tspeed;
+            thisb = (Math.min(Math.max(-mouseX, -size), size) / radius) * tspeed;
+        });
+        setInterval(update, 30);
+    };
+</script>
+</html>
